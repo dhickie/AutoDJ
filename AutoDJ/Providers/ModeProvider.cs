@@ -19,22 +19,26 @@ namespace AutoDJ.Providers
 
         private List<Track> _bangerPlaylist;
         private List<Track> _fillerPlaylist;
-        private int _nextBangerTrackIndex;
-        private int _nextFillerTrackIndex;
+        private int _lastBangerPlayedIndex;
+        private int _lastFillerPlayedIndex;
 
         public ModeProvider(ISpotifyService spotifyService, IOptions<SpotifyOptions> options)
         {
-            _playlistLock = new SemaphoreSlim(1, 1);
+            _spotifyService = spotifyService;
+
             _bangerPlaylistId = options.Value.BangerPlaylistId;
             _fillerPlaylistId = options.Value.FillerPlaylistId;
+            _playbackPlaylistId = options.Value.PlaybackPlaylistId;
 
-            _spotifyService = spotifyService;
+            _playlistLock = new SemaphoreSlim(1, 1);
+            _lastBangerPlayedIndex = -1;
+            _lastFillerPlayedIndex = -1;
         }
 
         public async Task SetMode(int modeId)
         {
             await InitialisePlaylistsIfRequired();
-            await PopulateNextTrackIndexes();
+            await PopulateLastTrackIndexes();
 
             switch (modeId)
             {
@@ -74,7 +78,7 @@ namespace AutoDJ.Providers
             }
         }
 
-        private async Task PopulateNextTrackIndexes()
+        private async Task PopulateLastTrackIndexes()
         {
             // Get the content of the playback playlist
             var playbackPlaylist = (await _spotifyService.GetPlaylistContent(_playbackPlaylistId)).ToList();
@@ -85,14 +89,31 @@ namespace AutoDJ.Providers
             // Figure out the position the current track has in the current playlist
             var currentIndex = playbackPlaylist.FindIndex(t => t.Id == currentTrack.Id);
 
-            // From there, figure out what the next IDs from the filler and banger playlists are
-            _nextBangerTrackIndex = FindNextTrackIndexFromPlaylist(currentIndex + 1, _bangerPlaylist, playbackPlaylist);
-            _nextFillerTrackIndex = FindNextTrackIndexFromPlaylist(currentIndex + 1, _fillerPlaylist, playbackPlaylist);
+            // For each playlist, figure out the last song from each that was played in the playback playlist (if any)
+            var lastBangerIndex = FindLastTrackIndexFromPlaylist(currentIndex, _bangerPlaylist, playbackPlaylist);
+            if (lastBangerIndex >= 0)
+            {
+                _lastBangerPlayedIndex = lastBangerIndex;
+            }
+
+            var lastFillerIndex = FindLastTrackIndexFromPlaylist(currentIndex, _fillerPlaylist, playbackPlaylist);
+            if (lastFillerIndex >= 0)
+            {
+                _lastFillerPlayedIndex = lastFillerIndex;
+            }
         }
 
-        private int FindNextTrackIndexFromPlaylist(int startIndex, List<Track> sourcePlaylist, List<Track> playbackPlaylist)
+        private int FindLastTrackIndexFromPlaylist(int currentIndex, List<Track> sourcePlaylist, List<Track> playbackPlaylist)
         {
-            return playbackPlaylist.FindIndex(startIndex, x => sourcePlaylist.Any(t => t.Id == x.Id));
+            var lastPlaybackIndex = playbackPlaylist.FindLastIndex(currentIndex, x => sourcePlaylist.Any(t => t.Id == x.Id)); // currentIndex+1 because the song currently playing will have "been played" by the time the next song comes on
+            if (lastPlaybackIndex < 0)
+            {
+                return lastPlaybackIndex;
+            }
+            else
+            {
+                return sourcePlaylist.FindIndex(x => x.Id == playbackPlaylist[lastPlaybackIndex].Id);
+            }
         }
 
         private async Task SetFullThrottleMode()
@@ -100,7 +121,7 @@ namespace AutoDJ.Providers
             // Nothing but bangers
             var trackIds = new List<string>();
 
-            for (var i = _nextBangerTrackIndex; i < _bangerPlaylist.Count; i++)
+            for (var i = _lastBangerPlayedIndex + 1; i < _bangerPlaylist.Count; i++)
             {
                 trackIds.Add(_bangerPlaylist[i].Id);
             }
@@ -112,17 +133,17 @@ namespace AutoDJ.Providers
         {
             // 2 bangers followed by 1 filler
             var trackIds = new List<string>();
-            var nextBangerIndex = _nextBangerTrackIndex;
-            var nextFillerIndex = _nextFillerTrackIndex;
+            var lastBangerIndex = _lastBangerPlayedIndex;
+            var lastFillerIndex = _lastFillerPlayedIndex;
 
-            while (nextBangerIndex < _bangerPlaylist.Count - 1 && nextFillerIndex < _fillerPlaylist.Count)
+            while (lastBangerIndex < _bangerPlaylist.Count - 2 && lastFillerIndex < _fillerPlaylist.Count - 1)
             {
-                trackIds.Add(_bangerPlaylist[nextBangerIndex].Id);
-                trackIds.Add(_bangerPlaylist[nextBangerIndex + 1].Id);
-                trackIds.Add(_fillerPlaylist[nextFillerIndex].Id);
+                trackIds.Add(_bangerPlaylist[lastBangerIndex+1].Id);
+                trackIds.Add(_bangerPlaylist[lastBangerIndex+2].Id);
+                trackIds.Add(_fillerPlaylist[lastFillerIndex+1].Id);
 
-                nextBangerIndex += 2;
-                nextFillerIndex++;
+                lastBangerIndex += 2;
+                lastFillerIndex++;
             }
 
             await _spotifyService.SetPlaylistContent(trackIds);
@@ -133,7 +154,7 @@ namespace AutoDJ.Providers
             // Nothing but fillers
             var trackIds = new List<string>();
 
-            for (var i = _nextFillerTrackIndex; i < _fillerPlaylist.Count; i++)
+            for (var i = _lastFillerPlayedIndex+1; i < _fillerPlaylist.Count; i++)
             {
                 trackIds.Add(_fillerPlaylist[i].Id);
             }

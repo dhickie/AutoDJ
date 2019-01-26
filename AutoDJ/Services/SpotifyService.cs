@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -104,8 +105,7 @@ namespace AutoDJ.Services
 
                 if (content != null)
                 {
-                    request.Headers.Add("Content-Type", "application/json");
-                    request.Content = new StringContent(JsonConvert.SerializeObject(content));
+                    request.Content = new StringContent(JsonConvert.SerializeObject(content), Encoding.UTF8, "application/json");
                 }
 
                 var response = await _httpClient.Send(request);
@@ -125,10 +125,17 @@ namespace AutoDJ.Services
             {
                 await _tokenLock.WaitAsync();
 
-                if (_accessToken == null || _accessTokenExpiry < DateTime.UtcNow)
+                try
                 {
-                    _accessToken = await RefreshToken();
-                    _accessTokenExpiry = DateTime.UtcNow.AddMinutes(50);
+                    if (_accessToken == null || _accessTokenExpiry < DateTime.UtcNow)
+                    {
+                        _accessToken = await RefreshToken();
+                        _accessTokenExpiry = DateTime.UtcNow.AddMinutes(50);
+                    }
+                }
+                finally
+                {
+                    _tokenLock.Release();
                 }
             }
         }

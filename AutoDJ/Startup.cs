@@ -1,4 +1,5 @@
-﻿using AutoDJ.Options;
+﻿using AutoDJ.Middleware;
+using AutoDJ.Options;
 using AutoDJ.Providers;
 using AutoDJ.Services;
 using Microsoft.AspNetCore.Builder;
@@ -25,6 +26,7 @@ namespace AutoDJ
 
             // Options
             services.Configure<SpotifyOptions>(Configuration.GetSection("Spotify"));
+            services.Configure<AppOptions>(Configuration.GetSection("App"));
 
             // Providers
             services.AddSingleton<IModeProvider, ModeProvider>();
@@ -47,6 +49,7 @@ namespace AutoDJ
                 app.UseHsts();
             }
 
+            app.UseAuthenticationMiddleware();
             app.UseHttpsRedirection();
             app.UseMvc();
         }

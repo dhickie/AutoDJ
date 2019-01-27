@@ -32,6 +32,7 @@ namespace AutoDJ
             // Services
             services.AddSingleton<IHttpClient, HttpClientWrapper>();
             services.AddSingleton<ISpotifyService, SpotifyService>();
+            services.AddSingleton<IPersistenceService, PersistenceService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

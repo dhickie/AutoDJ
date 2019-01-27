@@ -12,7 +12,8 @@ namespace AutoDJ.Providers
     public class ModeProvider : IModeProvider
     {
         private readonly ISpotifyService _spotifyService;
-        private readonly SemaphoreSlim _playlistLock;
+        private readonly IPersistenceService _persistenceService;
+        private readonly SemaphoreSlim _initLock;
         private readonly string _bangerPlaylistId;
         private readonly string _fillerPlaylistId;
         private readonly string _playbackPlaylistId;
@@ -22,22 +23,23 @@ namespace AutoDJ.Providers
         private int _lastBangerPlayedIndex;
         private int _lastFillerPlayedIndex;
 
-        public ModeProvider(ISpotifyService spotifyService, IOptions<SpotifyOptions> options)
+        public ModeProvider(ISpotifyService spotifyService, IPersistenceService persistenceService, IOptions<SpotifyOptions> options)
         {
             _spotifyService = spotifyService;
+            _persistenceService = persistenceService;
 
             _bangerPlaylistId = options.Value.BangerPlaylistId;
             _fillerPlaylistId = options.Value.FillerPlaylistId;
             _playbackPlaylistId = options.Value.PlaybackPlaylistId;
 
-            _playlistLock = new SemaphoreSlim(1, 1);
+            _initLock = new SemaphoreSlim(1, 1);
             _lastBangerPlayedIndex = -1;
             _lastFillerPlayedIndex = -1;
         }
 
         public async Task SetMode(int modeId)
         {
-            await InitialisePlaylistsIfRequired();
+            await InitialiseDataIfRequired();
             await PopulateLastTrackIndexes();
 
             switch (modeId)
@@ -54,28 +56,44 @@ namespace AutoDJ.Providers
             }
         }
 
-        private async Task InitialisePlaylistsIfRequired()
+        private async Task InitialiseDataIfRequired()
         {
             if (_bangerPlaylist == null || _fillerPlaylist == null)
             {
-                await _playlistLock.WaitAsync();
+                await _initLock.WaitAsync();
 
                 try
                 {
                     if (_bangerPlaylist == null || _fillerPlaylist == null)
                     {
-                        var bangerPlaylistTask = _spotifyService.GetPlaylistContent(_bangerPlaylistId);
-                        var fillerPlaylistTask = _spotifyService.GetPlaylistContent(_fillerPlaylistId);
+                        var playlistTask = InitialisePlaylists();
+                        var indexTask = InitialiseIndexes();
 
-                        _bangerPlaylist = (await bangerPlaylistTask).ToList();
-                        _fillerPlaylist = (await fillerPlaylistTask).ToList();
+                        await Task.WhenAll(playlistTask, indexTask);
                     }
                 }
                 finally
                 {
-                    _playlistLock.Release();
+                    _initLock.Release();
                 }
             }
+        }
+
+        private async Task InitialisePlaylists()
+        {
+            var bangerPlaylistTask = _spotifyService.GetPlaylistContent(_bangerPlaylistId);
+            var fillerPlaylistTask = _spotifyService.GetPlaylistContent(_fillerPlaylistId);
+
+            _bangerPlaylist = (await bangerPlaylistTask).ToList();
+            _fillerPlaylist = (await fillerPlaylistTask).ToList();
+        }
+
+        private async Task InitialiseIndexes()
+        {
+            var indexes = await _persistenceService.GetIndexes();
+
+            _lastBangerPlayedIndex = indexes.Item1;
+            _lastFillerPlayedIndex = indexes.Item2;
         }
 
         private async Task PopulateLastTrackIndexes()
@@ -101,11 +119,13 @@ namespace AutoDJ.Providers
             {
                 _lastFillerPlayedIndex = lastFillerIndex;
             }
+
+            await _persistenceService.SaveIndexes(_lastBangerPlayedIndex, _lastFillerPlayedIndex);
         }
 
         private int FindLastTrackIndexFromPlaylist(int currentIndex, List<Track> sourcePlaylist, List<Track> playbackPlaylist)
         {
-            var lastPlaybackIndex = playbackPlaylist.FindLastIndex(currentIndex, x => sourcePlaylist.Any(t => t.Id == x.Id)); // currentIndex+1 because the song currently playing will have "been played" by the time the next song comes on
+            var lastPlaybackIndex = playbackPlaylist.FindLastIndex(currentIndex, x => sourcePlaylist.Any(t => t.Id == x.Id));
             if (lastPlaybackIndex < 0)
             {
                 return lastPlaybackIndex;

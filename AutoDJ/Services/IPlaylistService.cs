@@ -8,5 +8,6 @@ namespace AutoDJ.Services
     {
         Task<List<Track>> GetBangerPlaylist();
         Task<List<Track>> GetFillerPlaylist();
+        Task<List<Track>> GetPlaybackPlaylist();
     }
 }

@@ -3,7 +3,6 @@ using AutoDJ.Options;
 using AutoDJ.Services;
 using Microsoft.Extensions.Options;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace AutoDJ.Providers
@@ -12,12 +11,12 @@ namespace AutoDJ.Providers
     {
         private readonly ISpotifyService _spotifyService;
         private readonly IPlaylistService _playlistService;
-        private readonly IComponentPlaylistTrackingService _componentPlaylistTrackingService;
+        private readonly IPlaylistTrackingService _componentPlaylistTrackingService;
 
         private List<Track> _bangerPlaylist;
         private List<Track> _fillerPlaylist;
 
-        public ModeProvider(ISpotifyService spotifyService, IPlaylistService playlistService, IComponentPlaylistTrackingService trackingService, IOptions<SpotifyOptions> options)
+        public ModeProvider(ISpotifyService spotifyService, IPlaylistService playlistService, IPlaylistTrackingService trackingService, IOptions<SpotifyOptions> options)
         {
             _spotifyService = spotifyService;
             _playlistService = playlistService;

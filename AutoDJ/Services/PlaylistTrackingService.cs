@@ -1,21 +1,17 @@
-﻿using System.Collections.Generic;
+﻿using AutoDJ.Models.Spotify;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using AutoDJ.Models.Spotify;
-using AutoDJ.Options;
-using Microsoft.Extensions.Options;
 
 namespace AutoDJ.Services
 {
-    public class ComponentPlaylistTrackingService : IComponentPlaylistTrackingService
+    public class PlaylistTrackingService : IPlaylistTrackingService
     {
         private readonly IPersistenceService _persistenceService;
+        private readonly IPlaylistService _playlistService;
         private readonly ISpotifyService _spotifyService;
 
-        private string _bangerPlaylistId;
-        private string _fillerPlaylistId;
-        private string _playbackPlaylistId;
         private readonly SemaphoreSlim _initLock;
 
         private List<Track> _bangerPlaylist;
@@ -23,14 +19,11 @@ namespace AutoDJ.Services
         private int _lastBangerPlayedIndex;
         private int _lastFillerPlayedIndex;
 
-        public ComponentPlaylistTrackingService(IPersistenceService persistenceService, ISpotifyService spotifyService, IOptions<SpotifyOptions> options)
+        public PlaylistTrackingService(IPersistenceService persistenceService, IPlaylistService playlistService, ISpotifyService spotifyService)
         {
             _persistenceService = persistenceService;
+            _playlistService = playlistService;
             _spotifyService = spotifyService;
-
-            _bangerPlaylistId = options.Value.BangerPlaylistId;
-            _fillerPlaylistId = options.Value.FillerPlaylistId;
-            _playbackPlaylistId = options.Value.PlaybackPlaylistId;
 
             _initLock = new SemaphoreSlim(1, 1);
             _lastBangerPlayedIndex = -1;
@@ -49,16 +42,20 @@ namespace AutoDJ.Services
             return _lastFillerPlayedIndex;
         }
 
-        public async Task PopulateLastTrackIndexes()
+        public async Task<int> GetCurrentPlaybackPlaylistIndex(List<Track> playbackPlaylist)
         {
-            // Get the content of the playback playlist
-            var playbackPlaylist = (await _spotifyService.GetPlaylistContent(_playbackPlaylistId)).ToList();
-
-            // Also get the track that's currently playing
             var currentTrack = await _spotifyService.GetCurrentTrack();
 
             // Figure out the position the current track has in the current playlist
-            var currentIndex = playbackPlaylist.FindIndex(t => t.Id == currentTrack.Id);
+            return playbackPlaylist.FindIndex(t => t.Id == currentTrack.Id);
+        }
+
+        public async Task PopulateLastTrackIndexes()
+        {
+            var playbackPlaylist = await _playlistService.GetPlaybackPlaylist();
+
+            // Figure out the position the current track has in the current playlist
+            var currentIndex = await GetCurrentPlaybackPlaylistIndex(playbackPlaylist);
 
             // For each playlist, figure out the last song from each that was played in the playback playlist (if any)
             var lastBangerIndex = FindLastTrackIndexFromPlaylist(currentIndex, _bangerPlaylist, playbackPlaylist);
@@ -114,11 +111,11 @@ namespace AutoDJ.Services
 
         private async Task InitialisePlaylists()
         {
-            var bangerPlaylistTask = _spotifyService.GetPlaylistContent(_bangerPlaylistId);
-            var fillerPlaylistTask = _spotifyService.GetPlaylistContent(_fillerPlaylistId);
+            var bangerPlaylistTask = _playlistService.GetBangerPlaylist();
+            var fillerPlaylistTask = _playlistService.GetFillerPlaylist();
 
-            _bangerPlaylist = (await bangerPlaylistTask).ToList();
-            _fillerPlaylist = (await fillerPlaylistTask).ToList();
+            _bangerPlaylist = await bangerPlaylistTask;
+            _fillerPlaylist = await fillerPlaylistTask;
         }
 
         private async Task InitialiseIndexes()

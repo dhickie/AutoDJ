@@ -15,7 +15,7 @@ namespace AutoDJ.Controllers
             _provider = provider;
         }
 
-        [HttpPost]
+        [HttpPut]
         [Route("{modeId}")]
         public async Task<IActionResult> SetMode(int modeId)
         {

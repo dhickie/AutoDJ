@@ -30,11 +30,12 @@ namespace AutoDJ
 
             // Providers
             services.AddSingleton<IModeProvider, ModeProvider>();
+            services.AddSingleton<IQueueProvider, QueueProvider>();
 
             // Services
             services.AddSingleton<IHttpClient, HttpClientWrapper>();
             services.AddSingleton<ISpotifyService, SpotifyService>();
-            services.AddSingleton<IComponentPlaylistTrackingService, ComponentPlaylistTrackingService>();
+            services.AddSingleton<IPlaylistTrackingService, PlaylistTrackingService>();
             services.AddSingleton<IPlaylistService, PlaylistService>();
             services.AddSingleton<IPersistenceService, PersistenceService>();
         }

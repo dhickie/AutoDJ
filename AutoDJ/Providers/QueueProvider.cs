@@ -38,8 +38,8 @@ namespace AutoDJ.Providers
             // Insert the requested song next in the playlist
             var currentIndex = await _playlistTrackingService.GetCurrentPlaybackPlaylistIndex(playbackPlaylist);
 
-            var truncatedPlaylist = playbackPlaylist.Skip(currentIndex).Select(t => t.Id).ToList();
-            truncatedPlaylist.Insert(1, songId);
+            var truncatedPlaylist = playbackPlaylist.Skip(currentIndex+1).Select(t => t.Id).ToList();
+            truncatedPlaylist.Insert(0, songId);
 
             await _spotifyService.SetPlaylistContent(truncatedPlaylist);
         }

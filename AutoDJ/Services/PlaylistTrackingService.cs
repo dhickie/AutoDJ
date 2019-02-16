@@ -52,6 +52,8 @@ namespace AutoDJ.Services
 
         public async Task PopulateLastTrackIndexes()
         {
+            await InitialiseDataIfRequired();
+
             var playbackPlaylist = await _playlistService.GetPlaybackPlaylist();
 
             // Figure out the position the current track has in the current playlist
@@ -75,14 +77,21 @@ namespace AutoDJ.Services
 
         private int FindLastTrackIndexFromPlaylist(int currentIndex, List<Track> sourcePlaylist, List<Track> playbackPlaylist)
         {
-            var lastPlaybackIndex = playbackPlaylist.FindLastIndex(currentIndex, x => sourcePlaylist.Any(t => t.Id == x.Id));
-            if (lastPlaybackIndex < 0)
+            if (currentIndex >= 0)
             {
-                return lastPlaybackIndex;
+                var lastPlaybackIndex = playbackPlaylist.FindLastIndex(currentIndex, x => sourcePlaylist.Any(t => t.Id == x.Id));
+                if (lastPlaybackIndex < 0)
+                {
+                    return lastPlaybackIndex;
+                }
+                else
+                {
+                    return sourcePlaylist.FindIndex(x => x.Id == playbackPlaylist[lastPlaybackIndex].Id);
+                }
             }
             else
             {
-                return sourcePlaylist.FindIndex(x => x.Id == playbackPlaylist[lastPlaybackIndex].Id);
+                return currentIndex;
             }
         }
 

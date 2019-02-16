@@ -27,8 +27,6 @@ namespace AutoDJ.Services
             _playbackPlaylistId = options.Value.PlaybackPlaylistId;
 
             _initLock = new SemaphoreSlim(1, 1);
-            _bangerPlaylist = new List<Track>();
-            _fillerPlaylist = new List<Track>();
         }
 
         public async Task<List<Track>> GetBangerPlaylist()

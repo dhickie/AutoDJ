@@ -34,6 +34,8 @@ namespace AutoDJ
             // Services
             services.AddSingleton<IHttpClient, HttpClientWrapper>();
             services.AddSingleton<ISpotifyService, SpotifyService>();
+            services.AddSingleton<IComponentPlaylistTrackingService, ComponentPlaylistTrackingService>();
+            services.AddSingleton<IPlaylistService, PlaylistService>();
             services.AddSingleton<IPersistenceService, PersistenceService>();
         }
 

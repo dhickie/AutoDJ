@@ -1,8 +1,7 @@
 ﻿using AutoDJ.Models.Spotify;
-using AutoDJ.Options;
 using AutoDJ.Services;
-using Microsoft.Extensions.Options;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace AutoDJ.Providers
@@ -16,12 +15,12 @@ namespace AutoDJ.Providers
 
         private List<Track> _bangerPlaylist;
         private List<Track> _fillerPlaylist;
+        private List<Track> _endOfNightPlaylist;
 
         public ModeProvider(ISpotifyService spotifyService, 
             IPlaylistService playlistService, 
             IPlaylistTrackingService trackingService, 
-            IPersistenceService persistenceService, 
-            IOptions<SpotifyOptions> options)
+            IPersistenceService persistenceService)
         {
             _spotifyService = spotifyService;
             _playlistService = playlistService;
@@ -50,6 +49,9 @@ namespace AutoDJ.Providers
                     case 2:
                         await SetFillerMode();
                         break;
+                    case 3:
+                        await SetEndOfNightMode();
+                        break;
                 }
 
                 await _persistenceService.SaveMode(modeId);
@@ -60,9 +62,11 @@ namespace AutoDJ.Providers
         {
             var bangerPlaylistTask = _playlistService.GetBangerPlaylist();
             var fillerPlaylistTask = _playlistService.GetFillerPlaylist();
+            var endOfNightPlaylistTask = _playlistService.GetEndOfNightPlaylist();
 
             _bangerPlaylist = await bangerPlaylistTask;
             _fillerPlaylist = await fillerPlaylistTask;
+            _endOfNightPlaylist = await endOfNightPlaylistTask;
         }
 
         private async Task SetFullThrottleMode()
@@ -124,6 +128,14 @@ namespace AutoDJ.Providers
             {
                 trackIds.Add(_fillerPlaylist[i].Id);
             }
+
+            await _spotifyService.SetPlaylistContent(trackIds);
+        }
+
+        private async Task SetEndOfNightMode()
+        {
+            // Just the end of night playlist
+            var trackIds = _endOfNightPlaylist.Select(t => t.Id).ToList();
 
             await _spotifyService.SetPlaylistContent(trackIds);
         }

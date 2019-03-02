@@ -97,14 +97,20 @@ namespace AutoDJ.Providers
                 lastBangerIndex++;
             }
 
-            while (lastBangerIndex < _bangerPlaylist.Count - 2 && lastFillerIndex < _fillerPlaylist.Count - 1)
+            while (lastBangerIndex < _bangerPlaylist.Count - 2 || lastFillerIndex < _fillerPlaylist.Count - 1)
             {
-                trackIds.Add(_bangerPlaylist[lastBangerIndex+1].Id);
-                trackIds.Add(_bangerPlaylist[lastBangerIndex+2].Id);
-                trackIds.Add(_fillerPlaylist[lastFillerIndex+1].Id);
+                if (lastBangerIndex < _bangerPlaylist.Count - 2)
+                {
+                    trackIds.Add(_bangerPlaylist[lastBangerIndex + 1].Id);
+                    trackIds.Add(_bangerPlaylist[lastBangerIndex + 2].Id);
+                    lastBangerIndex += 2;
+                }
 
-                lastBangerIndex += 2;
-                lastFillerIndex++;
+                if (lastFillerIndex < _fillerPlaylist.Count - 1)
+                {
+                    trackIds.Add(_fillerPlaylist[lastFillerIndex + 1].Id);
+                    lastFillerIndex++;
+                }
             }
 
             await _spotifyService.SetPlaylistContent(trackIds);

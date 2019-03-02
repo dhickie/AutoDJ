@@ -7,18 +7,21 @@ namespace AutoDJ.Services
 {
     public class PersistenceService : IPersistenceService
     {
-        private readonly SemaphoreSlim _fileLock;
+        private readonly SemaphoreSlim _indexFileLock;
+        private readonly SemaphoreSlim _modeFileLock;
 
-        private const string FILENAME = "indexes.json";
+        private const string INDEX_FILENAME = "indexes.json";
+        private const string MODE_FILENAME = "mode.json";
 
         public PersistenceService()
         {
-            _fileLock = new SemaphoreSlim(1, 1);
+            _indexFileLock = new SemaphoreSlim(1, 1);
+            _modeFileLock = new SemaphoreSlim(1, 1);
         }
 
         public async Task SaveIndexes(int bangerIndex, int fillerIndex)
         {
-            await _fileLock.WaitAsync();
+            await _indexFileLock.WaitAsync();
 
             try
             {
@@ -28,23 +31,23 @@ namespace AutoDJ.Services
                     FillerIndex = fillerIndex
                 };
 
-                await File.WriteAllTextAsync(FILENAME, JsonConvert.SerializeObject(state));
+                await File.WriteAllTextAsync(INDEX_FILENAME, JsonConvert.SerializeObject(state));
             }
             finally
             {
-                _fileLock.Release();
+                _indexFileLock.Release();
             }
         }
 
         public async Task<(int, int)> GetIndexes()
         {
-            await _fileLock.WaitAsync();
+            await _indexFileLock.WaitAsync();
 
             try
             {
-                if (File.Exists(FILENAME))
+                if (File.Exists(INDEX_FILENAME))
                 {
-                    var content = await File.ReadAllTextAsync(FILENAME);
+                    var content = await File.ReadAllTextAsync(INDEX_FILENAME);
                     var state = JsonConvert.DeserializeObject<IndexState>(content);
 
                     return (state.BangerIndex, state.FillerIndex);
@@ -54,7 +57,48 @@ namespace AutoDJ.Services
             }
             finally
             {
-                _fileLock.Release();
+                _indexFileLock.Release();
+            }
+        }
+
+        public async Task SaveMode(int currentMode)
+        {
+            await _modeFileLock.WaitAsync();
+
+            try
+            {
+                var state = new ModeState
+                {
+                    Mode = currentMode
+                };
+
+                await File.WriteAllTextAsync(MODE_FILENAME, JsonConvert.SerializeObject(state));
+            }
+            finally
+            {
+                _modeFileLock.Release();
+            }
+        }
+
+        public async Task<int> GetMode()
+        {
+            await _modeFileLock.WaitAsync();
+
+            try
+            {
+                if (File.Exists(MODE_FILENAME))
+                {
+                    var content = await File.ReadAllTextAsync(MODE_FILENAME);
+                    var state = JsonConvert.DeserializeObject<ModeState>(content);
+
+                    return state.Mode;
+                }
+
+                return -1;
+            }
+            finally
+            {
+                _modeFileLock.Release();
             }
         }
     }
@@ -63,5 +107,10 @@ namespace AutoDJ.Services
     {
         public int BangerIndex { get; set; }
         public int FillerIndex { get; set; }
+    }
+
+    internal class ModeState
+    {
+        public int Mode { get; set; }
     }
 }

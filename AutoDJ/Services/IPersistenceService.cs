@@ -6,5 +6,8 @@ namespace AutoDJ.Services
     {
         Task SaveIndexes(int bangerIndex, int fillerIndex);
         Task<(int, int)> GetIndexes();
+
+        Task SaveMode(int currentMode);
+        Task<int> GetMode();
     }
 }

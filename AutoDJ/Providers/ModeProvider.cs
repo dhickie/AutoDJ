@@ -12,34 +12,47 @@ namespace AutoDJ.Providers
         private readonly ISpotifyService _spotifyService;
         private readonly IPlaylistService _playlistService;
         private readonly IPlaylistTrackingService _componentPlaylistTrackingService;
+        private readonly IPersistenceService _persistenceService;
 
         private List<Track> _bangerPlaylist;
         private List<Track> _fillerPlaylist;
 
-        public ModeProvider(ISpotifyService spotifyService, IPlaylistService playlistService, IPlaylistTrackingService trackingService, IOptions<SpotifyOptions> options)
+        public ModeProvider(ISpotifyService spotifyService, 
+            IPlaylistService playlistService, 
+            IPlaylistTrackingService trackingService, 
+            IPersistenceService persistenceService, 
+            IOptions<SpotifyOptions> options)
         {
             _spotifyService = spotifyService;
             _playlistService = playlistService;
+            _persistenceService = persistenceService;
             _componentPlaylistTrackingService = trackingService;
         }
 
         public async Task SetMode(int modeId)
         {
-            var playlistTask = InitialisePlaylists();
-            var indexTask = _componentPlaylistTrackingService.PopulateLastTrackIndexes();
-            await Task.WhenAll(playlistTask, indexTask);
+            var currentMode = await _persistenceService.GetMode();
 
-            switch (modeId)
+            if (modeId != currentMode)
             {
-                case 0:
-                    await SetFullThrottleMode();
-                    break;
-                case 1:
-                    await SetNormalMode();
-                    break;
-                case 2:
-                    await SetFillerMode();
-                    break;
+                var playlistTask = InitialisePlaylists();
+                var indexTask = _componentPlaylistTrackingService.PopulateLastTrackIndexes();
+                await Task.WhenAll(playlistTask, indexTask);
+
+                switch (modeId)
+                {
+                    case 0:
+                        await SetFullThrottleMode();
+                        break;
+                    case 1:
+                        await SetNormalMode();
+                        break;
+                    case 2:
+                        await SetFillerMode();
+                        break;
+                }
+
+                await _persistenceService.SaveMode(modeId);
             }
         }
 
@@ -73,6 +86,13 @@ namespace AutoDJ.Providers
             var lastBangerIndex = await _componentPlaylistTrackingService.GetLastBangerIndex();
             var lastFillerIndex = await _componentPlaylistTrackingService.GetLastFillerIndex();
 
+            // Ensure that we don't interrupt a banger pairing if we're in the middle of one from Full Throttle mode
+            if (lastBangerIndex % 2 != 0 && _bangerPlaylist.Count > lastBangerIndex + 1)
+            {
+                trackIds.Add(_bangerPlaylist[lastBangerIndex + 1].Id);
+                lastBangerIndex++;
+            }
+
             while (lastBangerIndex < _bangerPlaylist.Count - 2 && lastFillerIndex < _fillerPlaylist.Count - 1)
             {
                 trackIds.Add(_bangerPlaylist[lastBangerIndex+1].Id);
@@ -90,7 +110,15 @@ namespace AutoDJ.Providers
         {
             // Nothing but fillers
             var trackIds = new List<string>();
+
+            // We need to know the last banger index because if we're 1 song through a "pairing" then we need the next song as well
+            var lastBangerIndex = await _componentPlaylistTrackingService.GetLastBangerIndex();
             var lastFillerIndex = await _componentPlaylistTrackingService.GetLastFillerIndex();
+
+            if (lastBangerIndex % 2 != 0 && _bangerPlaylist.Count > lastBangerIndex + 1)
+            {
+                trackIds.Add(_bangerPlaylist[lastBangerIndex + 1].Id);
+            }
 
             for (var i = lastFillerIndex + 1; i < _fillerPlaylist.Count; i++)
             {
